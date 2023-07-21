@@ -91,14 +91,15 @@ async def test_delete_all_secrets_within_the_same_action_scope(ops_test: OpsTest
     secrets_data = await helper_execute_action(ops_test, "get-secrets")
 
     secrets = secrets_data.get("secrets")
-    # ISSUE!!!!! Empty dict wouldn't have made it to event results
-    assert secrets
 
     print()
     print("*************************************************************************")
     print("All keys should be deleted [0..2].")
     print(f"Actual results: {json.dumps(secrets, sort_keys=True, indent=4)}")
     print("*************************************************************************")
+
+    # Empty dict wouldn't have made it to event results
+    assert not secrets
 
 
 async def test_delete_secrets_within_the_same_action_scope(ops_test: OpsTest):
@@ -118,13 +119,14 @@ async def test_delete_secrets_within_the_same_action_scope(ops_test: OpsTest):
     secrets = secrets_data.get("secrets")
     # ISSUE!!!!! Empty dict wouldn't have made it to event results
     assert secrets
-    assert 2 < len(secrets.keys())
 
     print()
     print("*************************************************************************")
     print("Even keys should be deleted [0..4].")
     print(f"Actual results: {json.dumps(secrets, sort_keys=True, indent=4)}")
     print("*************************************************************************")
+
+    assert 2 == len(secrets.keys())
 
 
 async def test_set_all_secrets_within_the_same_action_scope_work_fine(ops_test: OpsTest):
@@ -142,13 +144,14 @@ async def test_set_all_secrets_within_the_same_action_scope_work_fine(ops_test: 
     secrets_data = await helper_execute_action(ops_test, "get-secrets")
 
     secrets = secrets_data.get("secrets")
-    assert 0 < sum([secrets[key] != "### DELETED ###" for key in secrets])
 
     print()
     print("*************************************************************************")
     print("All keys should be marked as deleted [0..4].")
     print(f"Actual results: {json.dumps(secrets, sort_keys=True, indent=4)}")
     print("*************************************************************************")
+
+    assert 0 == sum([secrets[key] != "### DELETED ###" for key in secrets])
 
 
 async def test_set_secrets_within_the_same_action_scope_works(ops_test: OpsTest):
@@ -167,13 +170,14 @@ async def test_set_secrets_within_the_same_action_scope_works(ops_test: OpsTest)
 
     # ISSUE!!!!! "key3" should be '### DELETED ###'
     secrets = secrets_data.get("secrets")
-    assert 2 < sum([secrets[key] != "### DELETED ###" for key in secrets])
 
     print()
     print("*************************************************************************")
     print("Even keys should be marked as deleted [0..4].")
     print(f"Actual results: {json.dumps(secrets_data.get('secrets'), sort_keys=True, indent=4)}")
     print("*************************************************************************")
+
+    assert 2 == sum([secrets[key] != "### DELETED ###" for key in secrets])
 
 
 async def test_delete_lotta_secrets_within_the_same_action_scope(ops_test: OpsTest):
@@ -191,14 +195,15 @@ async def test_delete_lotta_secrets_within_the_same_action_scope(ops_test: OpsTe
     secrets_data = await helper_execute_action(ops_test, "get-secrets")
 
     secrets = secrets_data.get("secrets")
-    # ISSUE!!!!! Empty dict wouldn't have made it to event results
-    assert secrets
 
     print()
     print("*************************************************************************")
     print("Keys ([0..14]) all deleted.")
     print(f"Actual results: {json.dumps(secrets, sort_keys=True, indent=4)}")
     print("*************************************************************************")
+
+    # Empty dict wouldn't have made it to event results
+    assert not secrets
 
 
 async def test_set_lotta_secrets_within_the_same_action_scope(ops_test: OpsTest):
@@ -218,10 +223,11 @@ async def test_set_lotta_secrets_within_the_same_action_scope(ops_test: OpsTest)
     secrets = secrets_data.get("secrets")
     # ISSUE!!!!! Empty dict wouldn't have made it to event results
     assert secrets
-    assert 0 < sum([secrets[key] != "### DELETED ###" for key in secrets])
 
     print()
     print("*************************************************************************")
     print("Keys [0..14] were all marked as deleted.")
     print(f"Actual results: {json.dumps(secrets, sort_keys=True, indent=4)}")
     print("*************************************************************************")
+
+    assert 0 == sum([secrets[key] != "### DELETED ###" for key in secrets])
