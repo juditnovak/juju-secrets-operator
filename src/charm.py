@@ -31,6 +31,9 @@ class SecretsTestCharm(ops.CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
 
+        self._secrets = {}
+        self._secret_meta = None
+
         self.framework.observe(self.on.start, self._on_start)
 
         self.framework.observe(self.on.set_secret_action, self._on_set_secret_action)
@@ -75,59 +78,79 @@ class SecretsTestCharm(ops.CharmBase):
         """Application peer relation data object."""
         if self.peers is None:
             return {}
-
         return self.peers.data[self.app]
+
+    @property
+    def secret_meta(self):
+        if not self._secret_meta:
+            secret_id = self.app_peer_data.get("secret-id")
+            if not secret_id:
+                return
+            try:
+                self._secret_meta = self.model.get_secret(id=secret_id)
+            except SecretNotFoundError:
+                return
+        return self._secret_meta
+
+    @secret_meta.setter
+    def secret_meta(self, secret):
+        if secret:
+            self.app_peer_data["secret-id"] = secret.id
+        else:
+            del self.app_peer_data["secret-id"]
+        self._secret_meta = secret
+
+    @property
+    def cached_secrets(self):
+        if not self._secrets and self.secret_meta:
+            content = self.secret_meta.get_content()
+            if content:
+                self._secrets = content
+        return self._secrets
+
+    def append_cached_secret(self, new_content):
+        self._secrets.update(new_content)
+
+    def create_cached_secret(self, content):
+        self._secrets = content
+
+    def remove_cached_secret(self, key):
+        if key in self._secrets:
+            del self._secrets[key]
 
     def get_secrets(self) -> dict[str, str]:
         """Get the secrets stored in juju secrets backend."""
-        secret_id = self.app_peer_data.get("secret-id")
-
-        if not secret_id:
-            return {}
-
-        try:
-            secret = self.model.get_secret(id=secret_id)
-        except SecretNotFoundError:
-            return {}
-        content = secret.get_content()
-        logger.info(f"Retrieved secret {secret_id} with content {content}")
-        return content
+        return self.cached_secrets
 
     def set_secret(self, new_content: dict) -> None:
         """Set the secret in the juju secret storage."""
-        secret_id = self.app_peer_data.get("secret-id")
 
-        if secret_id:
-            secret = self.model.get_secret(id=secret_id)
-            content = secret.get_content()
-            content.update(new_content)
-            logger.info(f"Setting secret {secret.id} to {content}")
-            secret.set_content(content)
+        if self.cached_secrets:
+            self.append_cached_secret(new_content)
+            self.secret_meta.set_content(self.cached_secrets)
+            logger.info(f"Set secret {self.secret_meta.id} to {self.cached_secrets}")
         else:
-            secret = self.app.add_secret(new_content)
-            self.app_peer_data["secret-id"] = secret.id
-            logger.info(f"Added secret {secret.id} to {new_content}")
+            self.create_cached_secret(new_content)
+            self.secret_meta = self.app.add_secret(self.cached_secrets)
+            logger.info(f"Added secret {self.secret_meta.id} with {new_content}")
 
-        return secret.id
+        return self.secret_meta.id
 
     def delete_secret(self, key: str) -> None:
         """Remove a secret."""
-        secret_id = self.app_peer_data.get("secret-id")
-
-        if not secret_id:
+        if not self.cached_secrets:
             logging.error("Can't delete any secrets as we have none defined")
 
-        secret = self.model.get_secret(id=secret_id)
-        content = secret.get_content()
-        if key in content:
-            del content[key]
-        logger.info(f"Removing {key} from secret {secret.id}")
-        logger.info(f"Remaining content is {list(content.keys())}")
-        if content:
-            secret.set_content(content)
+        self.remove_cached_secret(key)
+        logger.info(f"Removing {key} from secret {self.secret_meta.id}")
+
+        if self.cached_secrets:
+            self.secret_meta.set_content(self.cached_secrets)
+            logger.info(f"Remaining content is {list(self.cached_secrets.keys())}")
         else:
-            secret.remove_all_revisions()
-            del self.app_peer_data["secret-id"]
+            self.secret_meta.remove_all_revisions()
+            self.secret_meta = None
+            logger.info("No secrets remained")
 
 
 if __name__ == "__main__":  # pragma: nocover
